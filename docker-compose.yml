@@ -1,0 +1,55 @@
+version: "3"
+
+services:
+  didcomm-v2-test-util:
+    build:
+      context: .
+    image: frostyfrog/didcommv2-testutil
+    environment:
+      #- TARGET=http://agent:3000
+      - CONTROLLER=http://agent:3001
+    volumes:
+      - ./src:/project/src:ro,z
+    entrypoint: "python /project/src/__main__.py"
+    depends_on:
+      agent:
+        condition: service_healthy
+
+  agent:
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-nightly
+    # image: acapy-test-image
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.acapy
+    #   args:
+    #     acapy_url: https://github.com/Indicio-tech/aries-cloudagent-python@c1fed3c13d33e65979b08dd1eaf79dc84e3ce504
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./base_manager.py:/home/aries/.local/lib/python3.9/site-packages/aries_cloudagent/connections/base_manager.py:ro,z
+    #   - ./configs:/configs:ro,z
+        #--tails-server-base-url http://tails:6543
+    command: >
+      start
+        --label Alice
+        --inbound-transport http 0.0.0.0 3000
+        --outbound-transport http
+        --endpoint http://agent:3000
+        --admin 0.0.0.0 3001
+        --admin-insecure-mode
+        --genesis-url https://raw.githubusercontent.com/Indicio-tech/indicio-network/main/genesis_files/pool_transactions_testnet_genesis
+        --wallet-type askar
+        --wallet-name agent
+        --wallet-key insecure
+        --auto-provision
+        --log-level debug
+        --debug-webhooks
+    healthcheck:
+      test: curl -s -o /dev/null -w '%{http_code}' "http://localhost:3001/status/live" | grep "200" > /dev/null
+      start_period: 30s
+      interval: 7s
+      timeout: 5s
+      retries: 5
+    # depends_on:
+    #   tails:
+    #     condition: service_started
