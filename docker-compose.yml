@@ -16,19 +16,15 @@ services:
         condition: service_healthy
 
   agent:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-nightly
-    # image: acapy-test-image
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile.acapy
-    #   args:
-    #     acapy_url: https://github.com/Indicio-tech/aries-cloudagent-python@c1fed3c13d33e65979b08dd1eaf79dc84e3ce504
+    #image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-nightly
+    image: acapy-test-image
+    build:
+      context: .
+      dockerfile: Dockerfile.acapy
+      args:
+        acapy_url: https://github.com/Indicio-tech/aries-cloudagent-python@feat/didcommv2-proof-of-concept
     ports:
       - "3001:3001"
-    volumes:
-      - ./base_manager.py:/home/aries/.local/lib/python3.9/site-packages/aries_cloudagent/connections/base_manager.py:ro,z
-    #   - ./configs:/configs:ro,z
-        #--tails-server-base-url http://tails:6543
     command: >
       start
         --label Alice
