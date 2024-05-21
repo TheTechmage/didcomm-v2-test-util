@@ -1,8 +1,9 @@
-FROM python:3.9-slim-bullseye
+FROM python:3.10-slim-bullseye
 
+RUN apt clean
 RUN apt update && apt install git curl -y
 
 ARG acapy_url
-RUN pip install "aries_cloudagent[askar] @ git+${acapy_url}"
+RUN pip install "aries_cloudagent[askar,didcommv2] @ git+${acapy_url}"
 
 ENTRYPOINT ["/bin/bash", "-c", "aca-py \"$@\"", "--"]
