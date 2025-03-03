@@ -24,6 +24,7 @@ services:
       args:
         acapy_url: https://github.com/Indicio-tech/aries-cloudagent-python@feat/didcommv2-proof-of-concept
     ports:
+      - "3000:3000"
       - "3001:3001"
     command: >
       start

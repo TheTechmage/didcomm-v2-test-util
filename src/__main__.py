@@ -14,12 +14,13 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 root.addHandler(handler)
 
-logging.getLogger("didcomm").setLevel(logging.DEBUG)
+logging.getLogger("didcomm").setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 from didcomm_messaging import quickstart
 
 RELAY_DID = 'did:web:dev.cloudmediator.indiciotech.io'
+PI_DID = 'did:peer:2.Vz6MkpmLbME7y9Qpa1ioCAyZ7YhLckUfbTGztfmVnGjAsGUGY.Ez6LSc14pA4VMT2MsrARgGFkLmshynDgmAq5wwui2swKzXxVT.SeyJ0IjoiZG0iLCJzIjp7InVyaSI6ImRpZDpwZWVyOjIuRXo2TFN0a1pnMTRvRzVMQ3hqYTNSaG90V0I3bTk0YWZFUjRFaUJMaFlwVVNva2J5Ui5WejZNa2dTWUJNNjNpSE5laVQyVlNRdTdiYnRYaEdZQ1FyUEo4dUVHdXJiZkdiYmdFLlNleUowSWpvaVpHMGlMQ0p6SWpwN0luVnlhU0k2SW1oMGRIQnpPaTh2ZFhNdFpXRnpkQzV3ZFdKc2FXTXViV1ZrYVdGMGIzSXVhVzVrYVdOcGIzUmxZMmd1YVc4dmJXVnpjMkZuWlNJc0ltRWlPbHNpWkdsa1kyOXRiUzkyTWlJc0ltUnBaR052YlcwdllXbHdNanRsYm5ZOWNtWmpNVGtpWFgxOS5TZXlKMElqb2laRzBpTENKeklqcDdJblZ5YVNJNkluZHpjem92TDNkekxuVnpMV1ZoYzNRdWNIVmliR2xqTG0xbFpHbGhkRzl5TG1sdVpHbGphVzkwWldOb0xtbHZMM2R6SWl3aVlTSTZXeUprYVdSamIyMXRMM1l5SWl3aVpHbGtZMjl0YlM5aGFYQXlPMlZ1ZGoxeVptTXhPU0pkZlgwLlNleUp6SWpvZ0ltaDBkSEJ6T2k4dmRYTXRaV0Z6ZEM1d2RXSnNhV011YldWa2FXRjBiM0l1YVc1a2FXTnBiM1JsWTJndWFXOHZiV1Z6YzJGblpTSXNJQ0poSWpvZ1d5SmthV1JqYjIxdEwyRnBjREVpTENKa2FXUmpiMjF0TDJGcGNESTdaVzUyUFhKbVl6RTVJbDBzSUNKeVpXTnBjR2xsYm5STFpYbHpJam9nV3lJamEyVjVMVElpWFN3Z0luUWlPaUFpWkdsa0xXTnZiVzExYm1sallYUnBiMjRpZlEuU2V5SnpJam9nSW5kemN6b3ZMM2R6TG5WekxXVmhjM1F1Y0hWaWJHbGpMbTFsWkdsaGRHOXlMbWx1WkdsamFXOTBaV05vTG1sdkwzZHpJaXdnSW1FaU9pQmJJbVJwWkdOdmJXMHZZV2x3TVNJc0ltUnBaR052YlcwdllXbHdNanRsYm5ZOWNtWmpNVGtpWFN3Z0luSmxZMmx3YVdWdWRFdGxlWE1pT2lCYklpTnJaWGt0TWlKZExDQWlkQ0k2SUNKa2FXUXRZMjl0YlhWdWFXTmhkR2x2YmlKOSIsImEiOlsiZGlkY29tbS92MiJdfX0'
 
 from typing import (
     Optional,
@@ -97,6 +98,21 @@ async def main():
 
     logger.info("retrieving agent did")
     target_did = ""
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            f'{os.environ.get("CONTROLLER")}/wallet/did/create',
+            json={"method": "did:peer:4"},
+        ) as resp:
+            target_did = (await resp.json()).get("result", {}).get("did", "")
+    logger.info("agent did: %s" % target_did)
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            'http://172.24.1.11:9494/post',
+            data=target_did,
+        ) as resp:
+            logger.info("Posted data, received: %s", await resp.read())
+
     async with aiohttp.ClientSession() as session:
         async with session.post(
             f'{os.environ.get("CONTROLLER")}/wallet/did/create',
@@ -114,7 +130,7 @@ async def main():
         "type": "https://didcomm.org/basicmessage/2.0/message",
         # "id": str(uuid.uuid4()),
         "body": {"content": "Hello World!"},
-        "frm": relayed_did,
+        "from": relayed_did,
         "lang": "en",
         "to": [target_did],
     }
@@ -122,6 +138,36 @@ async def main():
         await quickstart.send_http_message(DMP, did, message, target=target_did)
     except Exception as e:
         logger.exception(e)
+    await asyncio.sleep(2)
+    contact_id = None
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            f'{os.environ.get("CONTROLLER")}/connections-v2',
+        ) as resp:
+            r = await resp.json()
+            logger.info(r)
+            contact_id = r["results"][0]["pairwise_id"]
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            f'{os.environ.get("CONTROLLER")}/connections-v2/{contact_id}',
+        ) as resp:
+            logger.info(await resp.text())
+    async with aiohttp.ClientSession() as session:
+        async with session.delete(
+            f'{os.environ.get("CONTROLLER")}/connections-v2/{contact_id}',
+        ) as resp:
+            logger.info(await resp.text())
+    async with aiohttp.ClientSession() as session:
+        import random
+        nametag = "ACA-Py" + str(random.randint(1, 10))
+        async with session.post(
+            f'{os.environ.get("CONTROLLER")}/name-tag/set-name',
+            json={
+                "to_did": PI_DID,
+                "content": nametag,
+            },
+        ) as resp:
+            print((await resp.json()).get("result", {}).get("did", ""))
     #await quickstart.send_http_message(DMP, relayed_did, message, target=target_did)
     #await asyncio.sleep(1)
     async def print_msg(msg):
@@ -132,11 +178,25 @@ async def main():
             await quickstart.fetch_relayed_messages(DMP, did, RELAY_DID, print_msg)
         except Exception as e:
             logger.exception(e)
+    await asyncio.sleep(10)
     async with aiohttp.ClientSession() as session:
         async with session.get(
-            f'{os.environ.get("CONTROLLER")}/shutdown',
+            f'{os.environ.get("CONTROLLER")}/connections-v2',
         ) as resp:
             logger.info(await resp.text())
+    #async with aiohttp.ClientSession() as session:
+    #    async with session.get(
+    #        f'{os.environ.get("CONTROLLER")}/shutdown',
+    #    ) as resp:
+    #        logger.info(await resp.text())
+    logger.info("agent did: %s" % target_did)
+    logger.info("Name Tag: %s" % nametag)
+    #async with aiohttp.ClientSession() as session:
+    #    async with session.post(
+    #        'http://172.24.1.11:8084/7362c3f4-15ec-4964-88fd-4bdf78491f2e',
+    #        data=target_did,
+    #    ) as resp:
+    #        logger.info("Posted data, received: %s", await resp.read())
 
 loop = asyncio.get_event_loop()
 tasks = [loop.create_task(main())]
